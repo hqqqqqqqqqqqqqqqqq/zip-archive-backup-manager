@@ -1,4 +1,4 @@
-# ZIP ARCHIVE BACKUP MANAGER
+# ZIP ARCHIVE BACKUP MANAGER V1.0.2
 
 Zips selected folders and copies them to another folder or external drive, replacing the previous archive of each folder (rolling backup, not accumulating duplicates).
 

@@ -30,9 +30,6 @@
     overflow: hidden;
   }
 
-  /* Фоновое свечение: два размытых пятна, медленно "дышащих" transform'ом.
-     Только transform + opacity -> обрабатывается GPU-композитором,
-     почти не нагружает CPU/RAM, в отличие от canvas/видео-фонов. */
   .bg-glow {
     position: fixed;
     inset: 0;
@@ -139,7 +136,6 @@
     box-shadow: 0 10px 28px rgba(139, 54, 236, 0.4);
   }
 
-  /* Всплывающая подсказка на чистом CSS - без JS, показывается по :hover */
   [data-tip] { position: relative; }
   [data-tip]::after {
     content: attr(data-tip);
@@ -194,8 +190,8 @@
 <div class="bg-glow"><span></span><span></span></div>
 
 <header>
-  <h1>Backup</h1>
-  <p>Zip your folders and push them to an external drive.</p>
+  <h1>ZIP ARCHIVE BACKUP MANAGER by hq</h1>
+  <p>Zip your folders and push them to another folder or external drive.</p>
 </header>
 
 <main>
