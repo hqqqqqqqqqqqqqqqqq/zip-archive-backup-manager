@@ -17,9 +17,10 @@ PORT = 5151
 
 app = Flask(__name__, static_folder=None)
 
+# ---- shared backup-job state, guarded by a lock since Flask runs threaded ----
 _lock = threading.Lock()
 _log_lines = []
-_status = "idle"
+_status = "idle"  # idle | running | done | error
 
 
 def _log(msg):
@@ -28,6 +29,10 @@ def _log(msg):
 
 
 def _pick_folder():
+    """Launches a brand-new, isolated Python process just for the dialog.
+    Nothing here shares memory or threads with the Flask app, so a stuck
+    dialog can never freeze the server -- worst case, that one subprocess
+    hangs and you just close it, the app keeps running."""
     try:
         result = subprocess.run(
             [sys.executable, DIALOG_HELPER],
@@ -43,7 +48,9 @@ def _pick_folder():
 
 @app.route("/")
 def index():
-    return send_from_directory(APP_DIR, "index.html")
+    resp = send_from_directory(APP_DIR, "index.html")
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
 
 
 @app.route("/api/config", methods=["GET"])

@@ -6,12 +6,12 @@
 <style>
   :root {
     --bg: #0e0c14;
-    --surface: #19161f;   
+    --surface: #19161f;
     --surface-hover: #221e2c;
     --border: #2c2736;
-    --text: #ece8f4; 
+    --text: #ece8f4;
     --text-dim: #948da3;
-    --accent: #8b36ec;  
+    --accent: #8b36ec;
     --accent-text: #f5eefe;
     --danger: #f2765a;
     --radius: 12px;
@@ -26,7 +26,52 @@
     height: 100vh;
     display: flex;
     flex-direction: column;
+    position: relative;
+    overflow: hidden;
   }
+
+  /* Фоновое свечение: два размытых пятна, медленно "дышащих" transform'ом.
+     Только transform + opacity -> обрабатывается GPU-композитором,
+     почти не нагружает CPU/RAM, в отличие от canvas/видео-фонов. */
+  .bg-glow {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    overflow: hidden;
+  }
+  .bg-glow span {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(90px);
+    opacity: 0.28;
+    will-change: transform;
+  }
+  .bg-glow span:nth-child(1) {
+    width: 420px; height: 420px;
+    left: -100px; top: -80px;
+    background: var(--accent);
+    animation: drift1 22s ease-in-out infinite;
+  }
+  .bg-glow span:nth-child(2) {
+    width: 360px; height: 360px;
+    right: -80px; bottom: -60px;
+    background: var(--accent);
+    animation: drift2 26s ease-in-out infinite;
+  }
+  @keyframes drift1 {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    50% { transform: translate(60px, 40px) scale(1.15); }
+  }
+  @keyframes drift2 {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    50% { transform: translate(-50px, -30px) scale(1.1); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .bg-glow span { animation: none; }
+  }
+
+  header, main, footer { position: relative; z-index: 1; }
   header { padding: 28px 32px 16px; }
   header h1 { margin: 0; font-size: 20px; font-weight: 600; letter-spacing: -0.01em; }
   header p { margin: 4px 0 0; font-size: 13px; color: var(--text-dim); }
@@ -39,10 +84,20 @@
   .row {
     display: flex; align-items: center; gap: 10px;
     background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
-    padding: 12px 14px; margin-bottom: 8px; transition: background 0.15s ease;
+    padding: 12px 14px; margin-bottom: 8px;
+    transition: background 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
   }
-  .row:hover { background: var(--surface-hover); }
-  .row .icon { width: 18px; height: 18px; flex-shrink: 0; color: var(--accent); }
+  .row:hover {
+    background: var(--surface-hover);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(139, 54, 236, 0.18);
+    border-color: rgba(139, 54, 236, 0.35);
+  }
+  .row .icon {
+    width: 18px; height: 18px; flex-shrink: 0; color: var(--accent);
+    transition: transform 0.2s ease;
+  }
+  .row:hover .icon { transform: scale(1.15); }
   .row .info { flex: 1; min-width: 0; }
   .row .name { font-size: 14px; font-weight: 500; }
   .row .path {
@@ -52,16 +107,17 @@
   .row .remove {
     cursor: pointer; color: var(--text-dim); font-size: 18px;
     width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;
-    border-radius: 6px; flex-shrink: 0;
+    border-radius: 6px; flex-shrink: 0; transition: color 0.15s ease, background 0.15s ease, transform 0.15s ease;
   }
-  .row .remove:hover { color: var(--danger); background: rgba(242,118,90,0.1); }
+  .row .remove:hover { color: var(--danger); background: rgba(242,118,90,0.1); transform: scale(1.1); }
   .empty-hint {
     font-size: 13px; color: var(--text-dim); padding: 16px 14px; text-align: center;
     border: 1px dashed var(--border); border-radius: var(--radius);
   }
   button {
     font-family: inherit; cursor: pointer; border: none; border-radius: var(--radius);
-    font-size: 13px; font-weight: 500; transition: opacity 0.15s ease, transform 0.1s ease;
+    font-size: 13px; font-weight: 500;
+    transition: opacity 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
   }
   button:active { transform: scale(0.98); }
   button:disabled { cursor: not-allowed; opacity: 0.5; }
@@ -69,12 +125,50 @@
     width: 100%; padding: 11px; background: transparent;
     border: 1px solid var(--border); color: var(--text-dim);
   }
-  .btn-add:hover { color: var(--text); border-color: var(--text-dim); }
+  .btn-add:hover {
+    color: var(--text); border-color: var(--accent);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(139, 54, 236, 0.15);
+  }
   .btn-run {
     width: 100%; padding: 14px; background: var(--accent);
-    color: #0b1512; font-size: 14px; font-weight: 600;
+    color: var(--accent-text); font-size: 14px; font-weight: 600;
   }
-  .btn-run:hover { opacity: 0.9; }
+  .btn-run:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 28px rgba(139, 54, 236, 0.4);
+  }
+
+  /* Всплывающая подсказка на чистом CSS - без JS, показывается по :hover */
+  [data-tip] { position: relative; }
+  [data-tip]::after {
+    content: attr(data-tip);
+    position: absolute;
+    bottom: calc(100% + 10px);
+    left: 50%;
+    transform: translateX(-50%) translateY(6px);
+    background: var(--surface-hover);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-size: 12px;
+    font-weight: 400;
+    padding: 7px 11px;
+    border-radius: 8px;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s ease, transform 0.15s ease;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+    z-index: 10;
+  }
+  [data-tip]:hover::after {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .row, .row .icon, .row .remove, button, [data-tip]::after { transition: none; }
+  }
+
   footer { padding: 18px 32px 24px; border-top: 1px solid var(--border); background: var(--bg); }
   .status-line {
     display: flex; align-items: center; gap: 8px; margin-bottom: 12px;
@@ -97,15 +191,18 @@
 </head>
 <body>
 
+<div class="bg-glow"><span></span><span></span></div>
+
 <header>
-  <h1>ZIP ARHCIVE BACKUP MANAGER</h1>
+  <h1>Backup</h1>
+  <p>Zip your folders and push them to an external drive.</p>
 </header>
 
 <main>
   <section>
     <div class="section-label">Folders to back up</div>
     <div id="sources-list"></div>
-    <button class="btn-add" onclick="pickSources()">+ Add folder</button>
+    <button class="btn-add" data-tip="Opens a native folder picker" onclick="pickSources()">+ Add folder</button>
   </section>
 
   <section>
@@ -120,7 +217,7 @@
     <span id="status-text">Ready</span>
   </div>
   <div id="log"></div>
-  <button class="btn-run" id="run-btn" onclick="runBackup()">Run backup</button>
+  <button class="btn-run" id="run-btn" data-tip="Zips folders and copies them to the destination" onclick="runBackup()">Run backup</button>
 </footer>
 
 <script>
@@ -160,7 +257,7 @@ function render() {
           <div class="name">${basename(src)}</div>
           <div class="path">${src}</div>
         </div>
-        <div class="remove" onclick="removeSource(${i})">×</div>
+        <div class="remove" data-tip="Remove from list" onclick="removeSource(${i})">×</div>
       </div>
     `).join("");
   }
@@ -168,7 +265,7 @@ function render() {
   const destRow = document.getElementById("destination-row");
   if (state.destination) {
     destRow.innerHTML = `
-      <div class="row" onclick="pickDestination()" style="cursor:pointer">
+      <div class="row" data-tip="Click to change destination" onclick="pickDestination()" style="cursor:pointer">
         ${driveIcon()}
         <div class="info">
           <div class="name">${basename(state.destination)}</div>
@@ -176,7 +273,7 @@ function render() {
         </div>
       </div>`;
   } else {
-    destRow.innerHTML = `<button class="btn-add" onclick="pickDestination()">+ Choose destination</button>`;
+    destRow.innerHTML = `<button class="btn-add" data-tip="Opens a native folder picker" onclick="pickDestination()">+ Choose destination</button>`;
   }
 
   document.getElementById("run-btn").disabled = state.sources.length === 0 || !state.destination;
