@@ -20,11 +20,17 @@ app = Flask(__name__, static_folder=None)
 _lock = threading.Lock()
 _log_lines = []
 _status = "idle"
+_progress = {} 
 
 
 def _log(msg):
     with _lock:
         _log_lines.append(msg)
+
+
+def _report_progress(folder_name, done, total):
+    with _lock:
+        _progress[folder_name] = {"done": done, "total": total}
 
 
 def _pick_folder():
@@ -87,12 +93,13 @@ def run_backup():
         if _status == "running":
             return jsonify({"started": False, "reason": "already running"}), 409
         _log_lines.clear()
+        _progress.clear()
         _status = "running"
 
     def worker():
         global _status
         try:
-            results = run_backup_job(sources, destination, log=_log)
+            results = run_backup_job(sources, destination, log=_log, progress=_report_progress)
             with _lock:
                 _status = "error" if any(r["status"] == "error" for r in results) else "done"
         except Exception as e:
@@ -111,7 +118,8 @@ def get_log():
         lines = _log_lines[since:]
         status = _status
         total = len(_log_lines)
-    return jsonify({"lines": lines, "next": total, "status": status})
+        progress_snapshot = dict(_progress)
+    return jsonify({"lines": lines, "next": total, "status": status, "progress": progress_snapshot})
 
 
 def open_browser():
