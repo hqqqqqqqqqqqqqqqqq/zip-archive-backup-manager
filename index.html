@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Backup</title>
+<style>
+  :root {
+    --bg: #0e0c14;
+    --surface: #19161f;   
+    --surface-hover: #221e2c;
+    --border: #2c2736;
+    --text: #ece8f4; 
+    --text-dim: #948da3;
+    --accent: #8b36ec;  
+    --accent-text: #f5eefe;
+    --danger: #f2765a;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+  header { padding: 28px 32px 16px; }
+  header h1 { margin: 0; font-size: 20px; font-weight: 600; letter-spacing: -0.01em; }
+  header p { margin: 4px 0 0; font-size: 13px; color: var(--text-dim); }
+  main { flex: 1; overflow-y: auto; padding: 8px 32px 24px; }
+  section { margin-bottom: 22px; }
+  .section-label {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--text-dim); margin-bottom: 10px; font-weight: 600;
+  }
+  .row {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 12px 14px; margin-bottom: 8px; transition: background 0.15s ease;
+  }
+  .row:hover { background: var(--surface-hover); }
+  .row .icon { width: 18px; height: 18px; flex-shrink: 0; color: var(--accent); }
+  .row .info { flex: 1; min-width: 0; }
+  .row .name { font-size: 14px; font-weight: 500; }
+  .row .path {
+    font-size: 12px; color: var(--text-dim);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .row .remove {
+    cursor: pointer; color: var(--text-dim); font-size: 18px;
+    width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;
+    border-radius: 6px; flex-shrink: 0;
+  }
+  .row .remove:hover { color: var(--danger); background: rgba(242,118,90,0.1); }
+  .empty-hint {
+    font-size: 13px; color: var(--text-dim); padding: 16px 14px; text-align: center;
+    border: 1px dashed var(--border); border-radius: var(--radius);
+  }
+  button {
+    font-family: inherit; cursor: pointer; border: none; border-radius: var(--radius);
+    font-size: 13px; font-weight: 500; transition: opacity 0.15s ease, transform 0.1s ease;
+  }
+  button:active { transform: scale(0.98); }
+  button:disabled { cursor: not-allowed; opacity: 0.5; }
+  .btn-add {
+    width: 100%; padding: 11px; background: transparent;
+    border: 1px solid var(--border); color: var(--text-dim);
+  }
+  .btn-add:hover { color: var(--text); border-color: var(--text-dim); }
+  .btn-run {
+    width: 100%; padding: 14px; background: var(--accent);
+    color: #0b1512; font-size: 14px; font-weight: 600;
+  }
+  .btn-run:hover { opacity: 0.9; }
+  footer { padding: 18px 32px 24px; border-top: 1px solid var(--border); background: var(--bg); }
+  .status-line {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 12px;
+    font-size: 12px; color: var(--text-dim);
+  }
+  .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-dim); }
+  .status-dot.running { background: var(--accent); animation: pulse 1.2s infinite ease-in-out; }
+  .status-dot.done { background: var(--accent); }
+  .status-dot.error { background: var(--danger); }
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+  #log {
+    display: none; background: #0a0c10; border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 12px 14px; font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 12px;
+    line-height: 1.6; color: var(--text-dim); max-height: 160px; overflow-y: auto;
+    margin-bottom: 12px; white-space: pre-wrap;
+  }
+  #log .ok { color: var(--accent); }
+  #log .err { color: var(--danger); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>ZIP ARHCIVE BACKUP MANAGER</h1>
+</header>
+
+<main>
+  <section>
+    <div class="section-label">Folders to back up</div>
+    <div id="sources-list"></div>
+    <button class="btn-add" onclick="pickSources()">+ Add folder</button>
+  </section>
+
+  <section>
+    <div class="section-label">Destination</div>
+    <div id="destination-row"></div>
+  </section>
+</main>
+
+<footer>
+  <div class="status-line">
+    <div class="status-dot" id="status-dot"></div>
+    <span id="status-text">Ready</span>
+  </div>
+  <div id="log"></div>
+  <button class="btn-run" id="run-btn" onclick="runBackup()">Run backup</button>
+</footer>
+
+<script>
+let state = { sources: [], destination: "" };
+let pollTimer = null;
+let logOffset = 0;
+
+async function api(path, opts) {
+  const res = await fetch(path, opts);
+  return res.json();
+}
+
+function folderIcon() {
+  return `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+    <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/>
+  </svg>`;
+}
+function driveIcon() {
+  return `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+    <rect x="2" y="6" width="20" height="12" rx="2"/><line x1="6" y1="14" x2="6.01" y2="14"/><line x1="10" y1="14" x2="10.01" y2="14"/>
+  </svg>`;
+}
+
+function basename(p) {
+  return p.replace(/[\\/]+$/, "").split(/[\\/]/).pop();
+}
+
+function render() {
+  const list = document.getElementById("sources-list");
+  if (state.sources.length === 0) {
+    list.innerHTML = `<div class="empty-hint">No folders added yet</div>`;
+  } else {
+    list.innerHTML = state.sources.map((src, i) => `
+      <div class="row">
+        ${folderIcon()}
+        <div class="info">
+          <div class="name">${basename(src)}</div>
+          <div class="path">${src}</div>
+        </div>
+        <div class="remove" onclick="removeSource(${i})">×</div>
+      </div>
+    `).join("");
+  }
+
+  const destRow = document.getElementById("destination-row");
+  if (state.destination) {
+    destRow.innerHTML = `
+      <div class="row" onclick="pickDestination()" style="cursor:pointer">
+        ${driveIcon()}
+        <div class="info">
+          <div class="name">${basename(state.destination)}</div>
+          <div class="path">${state.destination}</div>
+        </div>
+      </div>`;
+  } else {
+    destRow.innerHTML = `<button class="btn-add" onclick="pickDestination()">+ Choose destination</button>`;
+  }
+
+  document.getElementById("run-btn").disabled = state.sources.length === 0 || !state.destination;
+  saveConfig();
+}
+
+async function pickSources() {
+  const { path } = await api("/api/pick_sources", { method: "POST" });
+  if (path && !state.sources.includes(path)) {
+    state.sources.push(path);
+    render();
+  }
+}
+
+async function pickDestination() {
+  const { path } = await api("/api/pick_destination", { method: "POST" });
+  if (path) {
+    state.destination = path;
+    render();
+  }
+}
+
+function removeSource(i) {
+  state.sources.splice(i, 1);
+  render();
+}
+
+async function saveConfig() {
+  await api("/api/config", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(state)
+  });
+}
+
+async function loadConfig() {
+  const cfg = await api("/api/config");
+  state.sources = cfg.sources || [];
+  state.destination = cfg.destination || "";
+  render();
+}
+
+function setStatus(mode, text) {
+  const dot = document.getElementById("status-dot");
+  dot.className = "status-dot " + mode;
+  document.getElementById("status-text").textContent = text;
+}
+
+function appendLog(msg) {
+  const log = document.getElementById("log");
+  log.style.display = "block";
+  const cls = msg.includes("FAILED") ? "err" : (msg.startsWith("  archived") || msg.startsWith("  removed") ? "ok" : "");
+  log.innerHTML += cls ? `<span class="${cls}">${escapeHtml(msg)}</span>\n` : escapeHtml(msg) + "\n";
+  log.scrollTop = log.scrollHeight;
+}
+
+function escapeHtml(s) {
+  return s.replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+}
+
+async function runBackup() {
+  document.getElementById("log").innerHTML = "";
+  document.getElementById("log").style.display = "none";
+  document.getElementById("run-btn").disabled = true;
+  logOffset = 0;
+  setStatus("running", "Backing up…");
+
+  const resp = await api("/api/run_backup", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sources: state.sources, destination: state.destination })
+  });
+  if (resp.started === false) return;
+
+  pollTimer = setInterval(pollLog, 400);
+}
+
+async function pollLog() {
+  const data = await api(`/api/log?since=${logOffset}`);
+  for (const line of data.lines) appendLog(line);
+  logOffset = data.next;
+
+  if (data.status === "done" || data.status === "error") {
+    clearInterval(pollTimer);
+    setStatus(data.status === "error" ? "error" : "done", data.status === "error" ? "Done with errors" : "Done");
+    document.getElementById("run-btn").disabled = false;
+  }
+}
+
+window.addEventListener("DOMContentLoaded", loadConfig);
+</script>
+
+</body>
+</html>
